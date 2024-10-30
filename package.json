@@ -1,0 +1,43 @@
+{
+  "name": "nestjs-xsecurity",
+  "version": "1.0.0",
+  "description": "Security middleware for NestJS applications with token validation and rate limiting",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "nestjs-xsecurity": "./dist/cli/bin.js"
+  },
+
+  "scripts": {
+    "build": "rimraf dist && tsc -p tsconfig.json && chmod +x dist/cli/bin/install.js",
+    "prepare": "npm run build"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "nestjs",
+    "security",
+    "middleware",
+    "rate-limiting",
+    "token-validation"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ahs12/nestjs-xsecurity.git"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.8.4",
+    "rimraf": "^6.0.1",
+    "tsup": "^8.3.5",
+    "typescript": "^5.6.3"
+  },
+  "peerDependencies": {
+    "@nestjs/common": "^10.4.6",
+    "@nestjs/config": "^3.3.0",
+    "@nestjs/core": "^10.4.6"
+  }
+}
