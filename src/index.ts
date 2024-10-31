@@ -9,8 +9,8 @@
  * @license MIT
  */
 
-export * from "./config/default.config";
-export * from "./interfaces/config.interface";
-export * from "./middleware/x-security.middleware";
-export * from "./utils/config.utils";
-export * from "./x-security.module";
+export * from './config/default.config';
+export * from './interfaces/config.interface';
+export * from './middleware/x-security.middleware';
+export * from './utils/config.utils';
+export * from './x-security.module';

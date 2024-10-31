@@ -11,11 +11,11 @@ export interface RateLimitConfig {
    */
   decayMinutes?: number;
 
-   /**
+  /**
    * Cleanup interval in minutes for rate limit store(when someone do too many requests, rate limit store stores the rate limit info. this cleanup the store)
    * @default 5
    */
-   cleanupInterval?: number;
+  cleanupInterval?: number;
 }
 
 export interface TokenConfig {
