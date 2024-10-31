@@ -1,104 +1,176 @@
 # nestjs-xsecurity
 
-🔐 A robust security middleware for NestJS applications with token validation and rate limiting capabilities.
+<div align="center">
+
+🔐 Enterprise-grade security middleware for NestJS applications with token validation, rate limiting, and path exclusion.
 
 [![npm version](https://badge.fury.io/js/nestjs-xsecurity.svg)](https://badge.fury.io/js/nestjs-xsecurity)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
+[![NestJS](https://img.shields.io/badge/NestJS-Compatible-red.svg)](https://nestjs.com/)
 
-## Features
+</div>
 
-- 🔑 Token-based security validation
-- 🚦 IP-based rate limiting
-- ⚙️ Highly configurable settings
-- 📘 Full TypeScript support
-- 🛠️ CLI setup tool
-- 🔄 Token generation utilities for multiple platforms
+## 🌟 Features
 
-## Installation
+- **Token-based Security**
+  - HMAC-SHA256 signature validation
+  - Configurable token expiration
+  - Custom header support
+
+- **Rate Limiting**
+  - IP-based request throttling
+  - Configurable attempt limits
+  - Automatic cleanup of expired records
+
+- **Path Control**
+  - Exclude specific routes
+  - Support for wildcards and patterns
+  - RegExp compatibility
+
+- **Developer Experience**
+  - Full TypeScript support
+  - Comprehensive configuration options
+  - CLI setup tool
+  - Cross-platform token generators
+
+## 📦 Installation
 
 ```bash
+# Using npm
 npm install nestjs-xsecurity
+
+# Using yarn
+yarn add nestjs-xsecurity
+
+# Using pnpm
+pnpm add nestjs-xsecurity
 ```
 
-## Setup
+## 🚀 Quick Start
 
-Initialize the security configuration using our CLI tool:
+### 1. Initialize with CLI
 
 ```bash
 npx nestjs-xsecurity install
 ```
 
 This command will:
-- Generate a cryptographically secure random secret
-- Create/update `.env` file with required variables
-- Enable the security middleware
+- Generate a secure random secret
+- Set up environment variables
+- Create initial configuration
 
-## Implementation
+### 2. Module Registration
 
-### 1. Register the Module
+Choose one of these approaches:
+
+#### ⭐ Recommended: Async Configuration
 
 ```typescript
-// app.module.ts
+import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { XSecurityModule } from 'nestjs-xsecurity';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot(),
+    XSecurityModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        enabled: config.get('XSECURITY_ENABLED', true),
+        secret: config.get('XSECURITY_SECRET'),
+        rateLimit: {
+          maxAttempts: config.get('XSECURITY_MAX_ATTEMPTS', 5),
+          decayMinutes: config.get('XSECURITY_DECAY_MINUTES', 1),
+        },
+        exclude: ['/health', '/metrics', '/api/docs/*'],
+      }),
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+#### Alternative: Static Configuration
+
+```typescript
+import { Module } from '@nestjs/common';
 import { XSecurityModule } from 'nestjs-xsecurity';
 
 @Module({
   imports: [
     XSecurityModule.register({
       enabled: true,
-      token: {
-        headerName: 'X-SECURITY-TOKEN'
-      }
-    })
-  ]
+      secret: process.env.XSECURITY_SECRET,
+      rateLimit: {
+        maxAttempts: 5,
+        decayMinutes: 1,
+      },
+      exclude: ['/health'],
+    }),
+  ],
 })
 export class AppModule {}
 ```
 
-### 2. Apply Middleware
+## 🔧 Configuration
 
-Choose one of these methods:
+### Environment Variables
 
-**Option A: NestJS Module Approach (Recommended)**
-```typescript
-// app.module.ts
-import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
-import { XSecurityMiddleware } from 'nestjs-xsecurity';
+```env
+# Required
+XSECURITY_SECRET=your-secure-secret-key
 
-@Module({
-  imports: [XSecurityModule.register()]
-})
-export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer.apply(XSecurityMiddleware).forRoutes('*');
-  }
-}
-```
-
-**Option B: Express-style Approach**
-```typescript
-// main.ts
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  app.use(app.get(XSecurityMiddleware));
-  await app.listen(3000);
-}
-```
-
-### 3. Environment Configuration
-
-```bash
+# Optional
 XSECURITY_ENABLED=true
-XSECURITY_SECRET=your-secret-key
+XSECURITY_MAX_ATTEMPTS=5
+XSECURITY_DECAY_MINUTES=1
 ```
 
-## Token Implementation
+### Configuration Options
 
-### TypeScript/JavaScript
+```typescript
+interface XSecurityConfig {
+  // Enable/disable middleware
+  enabled?: boolean;
+
+  // Your secret key for token validation
+  secret?: string;
+
+  // Rate limiting settings
+  rateLimit?: {
+    maxAttempts?: number;    // Default: 5
+    decayMinutes?: number;   // Default: 1
+    cleanupInterval?: number; // Default: 5
+  };
+
+  // Token configuration
+  token?: {
+    headerName?: string;     // Default: 'X-SECURITY-TOKEN'
+    expirySeconds?: number;  // Default: 10 (10 seconds)
+  };
+
+  // Paths to exclude from security checks
+  exclude?: Array<string | RegExp>;
+
+  // Custom error messages
+  errorMessages?: {
+    rateLimitExceeded?: string;
+    invalidToken?: string;
+  };
+}
+```
+
+## 🔑 Token Implementation
+
+### Node.js / TypeScript
+
 ```typescript
 import crypto from 'crypto';
 
-export function generateXsecurityToken(secretKey: string): string {
-  const expiryTimestamp = Math.floor(Date.now() / 1000) + 60; // 1 minute expiry
+function generateXsecurityToken(secretKey: string, expirySeconds = 300): string {
+  const expiryTimestamp = Math.floor(Date.now() / 1000) + expirySeconds;
   const payload = { expiry: expiryTimestamp };
   const token = Buffer.from(JSON.stringify(payload)).toString('base64');
   const signature = crypto
@@ -108,71 +180,154 @@ export function generateXsecurityToken(secretKey: string): string {
 
   return `${token}.${signature}`;
 }
+
+// Usage
+const token = generateXsecurityToken('your-secret-key');
 ```
 
-### Flutter/Dart
+### Python
+
+```python
+import hmac
+import json
+import base64
+import hashlib
+import time
+
+def generate_xsecurity_token(secret_key: str, expiry_seconds: int = 300) -> str:
+    expiry = int(time.time()) + expiry_seconds
+    payload = {'expiry': expiry}
+
+    # Create token
+    token = base64.b64encode(
+        json.dumps(payload).encode()
+    ).decode()
+
+    # Generate signature
+    signature = hmac.new(
+        secret_key.encode(),
+        token.encode(),
+        hashlib.sha256
+    ).hexdigest()
+
+    return f"{token}.{signature}"
+```
+
+### Flutter / Dart
+
 ```dart
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 
-String generateXsecurityToken(String secretKey) {
-  final expiryTimestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000 + 60;
-  final payload = {'expiry': expiryTimestamp};
+String generateXsecurityToken(String secretKey, {int expirySeconds = 300}) {
+  final expiry = DateTime.now().millisecondsSinceEpoch ~/ 1000 + expirySeconds;
+  final payload = {'expiry': expiry};
+
   final token = base64Url.encode(utf8.encode(jsonEncode(payload)));
   final signature = Hmac(sha256, utf8.encode(secretKey))
-    .convert(utf8.encode(token))
-    .toString();
+      .convert(utf8.encode(token))
+      .toString();
 
   return '$token.$signature';
 }
 ```
 
-## Usage Examples
+## 📝 Examples
 
-### Token Format
-```
-eyJleHBpcnkiOjE3MTE5MDE2NjJ9.89b9c45cffee0072ea160441e2462a7ae2de8b484f5d1f5bf4e57f90b1340e0c
+### Making a Secured Request
+
+```typescript
+// Client-side
+const token = generateXsecurityToken(secretKey);
+
+await fetch('https://api.example.com/data', {
+  headers: {
+    'X-SECURITY-TOKEN': token
+  }
+});
 ```
 
-### HTTP Request Header
-```http
-X-SECURITY-TOKEN: eyJleHBicnkiOjE3MTE5MDE2NjJ9.89b9c45cffee0072ea160441e2462a7ae2de8b484f5d1f5bf4e57f90b1340e0c
+### Path Exclusion Patterns
+
+```typescript
+XSecurityModule.register({
+  exclude: [
+    '/health',           // Exact match
+    '/api/*',           // Wildcard match
+    '/v1/:param/data',  // Parameter match
+    /^\/public\/.*/     // RegExp match
+  ]
+});
 ```
 
-### Error Response
-```json
+### Error Responses
+
+```typescript
+// Rate limit exceeded
+{
+  "statusCode": 429,
+  "message": "Too many requests. Please try again later.",
+  "error": "Too Many Requests"
+}
+
+// Invalid token
 {
   "statusCode": 403,
-  "message": "Invalid XSECURITY token"
+  "message": "Invalid XSECURITY token",
+  "error": "Forbidden"
 }
 ```
 
-## CLI Commands
+## 🛠️ CLI Reference
 
 ```bash
 npx nestjs-xsecurity <command>
 
 Commands:
-  install     Generate secret and configure environment
+  install     Initialize security configuration
   init        Alias for install
   help        Show help information
 ```
 
-## Security Considerations
+## 🔒 Security Best Practices
 
-- Store the secret key securely and never expose it in client-side code
-- Use environment variables for configuration in production
-- Implement proper secret key rotation procedures
-- Monitor rate limiting logs for potential attacks
+1. **Secret Management**
+   - Use environment variables for secrets
+   - Implement secret rotation
+   - Never expose secrets in client code
 
-<!-- ## Contributing
+2. **Token Handling**
+   - Use HTTPS for all requests
+   - Implement token refresh mechanism
+   - Monitor token usage patterns
 
-Contributions are welcome! Please read our [contributing guidelines](CONTRIBUTING.md) for details. -->
+3. **Rate Limiting**
+   - Adjust limits based on your API's capacity
+   - Monitor rate limit hits
+   - Implement progressive delays
 
-## License
+## 🤝 Contributing
+
+Contributions are welcome! Please read our [contributing guidelines](CONTRIBUTING.md) before submitting changes.
+
+1. Fork the repository
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Author
+## ✨ Creator
 
 [Azizul Hakim](https://github.com/ahs12)
+
+---
+
+<div align="center">
+
+Made with ❤️ for the NestJS community
+
+</div>

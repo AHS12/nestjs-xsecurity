@@ -17,6 +17,8 @@ export function mergeConfig(userConfig?: XSecurityConfig): XSecurityConfig {
       ...DEFAULT_CONFIG.environment,
       ...userConfig?.environment,
     },
+    secret: userConfig?.secret,
+    exclude: userConfig?.exclude ?? DEFAULT_CONFIG.exclude,
     errorMessages: {
       ...DEFAULT_CONFIG.errorMessages,
       ...userConfig?.errorMessages,

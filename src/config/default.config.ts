@@ -16,6 +16,7 @@ export const DEFAULT_CONFIG: XSecurityConfig = {
     enabled: 'XSECURITY_ENABLED',
     secret: 'XSECURITY_SECRET',
   },
+  exclude: [],
   errorMessages: {
     rateLimitExceeded: 'Too many requests. Please try again later.',
     invalidToken: 'Invalid XSECURITY token',
