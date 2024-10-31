@@ -61,6 +61,20 @@ export function validateConfig(config: XSecurityConfig): void {
     }
   }
 
+  // Validate Secret
+  if (config.secret) {
+    if (typeof config.secret !== 'string' || !config.secret.trim()) {
+      throw new ConfigValidationError('secret must be a non-empty string');
+    }
+  }
+
+  // Validate Exclude
+  if (config.exclude) {
+    if (!Array.isArray(config.exclude)) {
+      throw new ConfigValidationError('exclude must be an array');
+    }
+  }
+
   // Validate Environment Configuration
   if (config.environment) {
     const { enabled, secret } = config.environment;

@@ -75,6 +75,18 @@ export interface XSecurityConfig {
   environment?: EnvironmentConfig;
 
   /**
+   * Secret key for token signing. If not provided, will try to use environment variable
+   */
+  secret?: string;
+
+  /**
+   * Routes to exclude from XSecurity middleware
+   * Supports string paths and RegExp patterns
+   * Example: ['/health', '/public/*', /^\/public\/.*$/]
+   */
+  exclude?: Array<string | RegExp>;
+
+  /**
    * Custom error messages
    */
   errorMessages?: {

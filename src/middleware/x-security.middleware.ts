@@ -1,55 +1,52 @@
-import {
-  HttpException,
-  HttpStatus,
-  Injectable,
-  NestMiddleware,
-  OnModuleDestroy,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { HttpStatus, Inject, Injectable, NestMiddleware, OnModuleDestroy } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { NextFunction, Request, Response } from 'express';
 import { XSecurityConfig } from '../interfaces/config.interface';
 import { mergeConfig } from '../utils/config.utils';
-
-interface TokenPayload {
-  expiry: number;
-  [key: string]: unknown;
-}
+import { XSECURITY_CONFIG } from '../x-security.module';
 
 interface RateLimitInfo {
   count: number;
   resetTime: number;
 }
-
 @Injectable()
 export class XSecurityMiddleware implements NestMiddleware, OnModuleDestroy {
-  private readonly config: XSecurityConfig;
   private readonly rateLimitStore = new Map<string, RateLimitInfo>();
   private readonly cleanupInterval: NodeJS.Timeout;
+  private readonly secret: string;
+  private readonly excludePatterns: Array<string | RegExp>;
 
-  constructor(
-    private configService: ConfigService,
-    userConfig?: XSecurityConfig,
-  ) {
-    this.config = mergeConfig(userConfig);
+  constructor(@Inject(XSECURITY_CONFIG) private config: XSecurityConfig) {
+    this.config = mergeConfig(config);
 
-    // Setup periodic cleanup with configurable interval
+    this.secret =
+      config.secret || process.env[this.config.environment?.secret || 'XSECURITY_SECRET'] || '';
+
+    if (!this.secret) {
+      console.warn(
+        'XSecurity Warning: No security secret provided. Please provide a secret through config or environment variable.',
+      );
+    }
+    this.excludePatterns = config.exclude || [];
+
     const cleanupMinutes = this.config.rateLimit?.cleanupInterval || 5;
     this.cleanupInterval = setInterval(
       () => {
         this.cleanupRateLimits();
       },
       cleanupMinutes * 60 * 1000,
-    );
+    ) as NodeJS.Timeout;
   }
 
   use(req: Request, res: Response, next: NextFunction): void {
     try {
-      const envEnabled = this.configService.get<string>(
-        this.config.environment?.enabled || 'XSECURITY_ENABLED',
-      );
-
-      if (this.config.enabled === false || envEnabled === 'false') {
+      // Check if disabled through environment variable
+      const envEnabled = process.env[this.config.environment?.enabled || 'XSECURITY_ENABLED'];
+      if (
+        this.config.enabled === false ||
+        envEnabled === 'false' ||
+        this.isExcludedPath(req.originalUrl || req.url)
+      ) {
         return next();
       }
 
@@ -57,30 +54,82 @@ export class XSecurityMiddleware implements NestMiddleware, OnModuleDestroy {
       const currentTime = Date.now();
 
       if (this.isRateLimited(clientIp, currentTime)) {
-        throw new HttpException(
-          this.config.errorMessages?.rateLimitExceeded ||
+        res.status(HttpStatus.TOO_MANY_REQUESTS).json({
+          statusCode: HttpStatus.TOO_MANY_REQUESTS,
+          message:
+            this.config.errorMessages?.rateLimitExceeded ||
             'Too many requests. Please try again later.',
-          HttpStatus.TOO_MANY_REQUESTS,
-        );
+          error: 'Too Many Requests',
+        });
+        return;
       }
 
       const token = req.header(this.config.token?.headerName || 'X-SECURITY-TOKEN');
       if (!token || !this.isValidXSecureToken(token)) {
         this.incrementFailedAttempts(clientIp, currentTime);
-        throw new HttpException(
-          this.config.errorMessages?.invalidToken || 'Invalid XSECURITY token',
-          HttpStatus.FORBIDDEN,
-        );
+        res.status(HttpStatus.FORBIDDEN).json({
+          statusCode: HttpStatus.FORBIDDEN,
+          message: this.config.errorMessages?.invalidToken || 'Invalid XSECURITY token',
+          error: 'Forbidden',
+        });
+        return;
       }
 
       this.rateLimitStore.delete(clientIp);
       next();
     } catch (error) {
-      if (error instanceof HttpException) {
-        throw error;
-      }
-      throw new HttpException('Internal security error', HttpStatus.INTERNAL_SERVER_ERROR);
+      // Handle any unexpected errors
+      res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Internal security error',
+        error: 'Internal Server Error',
+      });
     }
+  }
+
+  private normalizePath(path: string): string {
+    const pathWithoutQuery = path.split('?')[0];
+    return pathWithoutQuery.startsWith('/') ? pathWithoutQuery : `/${pathWithoutQuery}`;
+  }
+
+  private isExcludedPath(path: string): boolean {
+    const normalizedPath = this.normalizePath(path);
+    return this.excludePatterns.some((pattern) => {
+      // If pattern is RegExp, use test method
+      if (pattern instanceof RegExp) {
+        return pattern.test(normalizedPath);
+      }
+      const normalizedPattern = this.normalizePath(pattern);
+      const patternSegments = normalizedPattern.split('/').filter(Boolean);
+      const pathSegments = normalizedPath.split('/').filter(Boolean);
+
+      // If segments length doesn't match and there's no wildcard, return false
+      if (patternSegments.length !== pathSegments.length && !pattern.includes('*')) {
+        return false;
+      }
+
+      for (let i = 0; i < patternSegments.length; i++) {
+        const patternSegment = patternSegments[i];
+        const pathSegment = pathSegments[i];
+
+        // Handle wildcards
+        if (patternSegment === '*') {
+          if (i === patternSegments.length - 1) {
+            return true;
+          }
+          continue;
+        }
+        if (patternSegment.startsWith(':')) {
+          if (!pathSegment) return false;
+          continue;
+        }
+        if (patternSegment.toLowerCase() !== pathSegment.toLowerCase()) {
+          return false;
+        }
+      }
+
+      return true;
+    });
   }
 
   private isRateLimited(clientIp: string, currentTime: number): boolean {
@@ -108,22 +157,15 @@ export class XSecurityMiddleware implements NestMiddleware, OnModuleDestroy {
 
   private isValidXSecureToken(signedToken: string): boolean {
     try {
-      const sharedSecretKey = this.configService.get<string>(
-        this.config.environment?.secret || 'XSECURITY_SECRET',
-      );
-
-      if (!sharedSecretKey) {
+      if (!this.secret) {
         throw new Error('Security secret is not configured');
       }
-
       const parts = signedToken.split('.');
       if (parts.length !== 2) return false;
 
       const [token, signature] = parts;
-      if (!token || !signature) return false;
-
       const expectedSignature = crypto
-        .createHmac('sha256', sharedSecretKey)
+        .createHmac('sha256', this.secret)
         .update(token)
         .digest('hex');
 
@@ -131,14 +173,10 @@ export class XSecurityMiddleware implements NestMiddleware, OnModuleDestroy {
         return false;
       }
 
-      const payload = JSON.parse(Buffer.from(token, 'base64').toString('utf-8')) as TokenPayload;
-
+      const payload = JSON.parse(Buffer.from(token, 'base64').toString('utf-8'));
       if (!payload || !payload.expiry) return false;
 
-      const expirySeconds = this.config.token?.expirySeconds || 10;
-      return (
-        Date.now() / 1000 < payload.expiry && payload.expiry <= Date.now() / 1000 + expirySeconds
-      );
+      return Date.now() / 1000 < payload.expiry;
     } catch {
       return false;
     }
