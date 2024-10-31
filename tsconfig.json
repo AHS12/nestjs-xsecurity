@@ -1,12 +1,12 @@
 {
   "compilerOptions": {
-    "target": "es2020",
     "module": "commonjs",
     "declaration": true,
     "removeComments": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
+    "target": "es2020",
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
@@ -16,8 +16,11 @@
     "noImplicitAny": true,
     "strictBindCallApply": true,
     "forceConsistentCasingInFileNames": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "paths": {
+      "@/*": ["src/*"]
+    }
   },
-  "include": ["src"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }

@@ -1,7 +1,7 @@
-import { DynamicModule, Module } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { XSecurityConfig } from "./interfaces/config.interface";
-import { XSecurityMiddleware } from "./middleware/x-security.middleware";
+import { DynamicModule, Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { XSecurityConfig } from './interfaces/config.interface';
+import { XSecurityMiddleware } from './middleware/x-security.middleware';
 
 @Module({})
 export class XSecurityModule {

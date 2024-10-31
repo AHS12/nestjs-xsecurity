@@ -9,7 +9,7 @@ function generateSecret(): string {
 function updateEnvFile(secret: string): void {
   const envPath = path.join(process.cwd(), '.env');
   let envContent = '';
-  
+
   try {
     envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
   } catch (error) {
@@ -72,7 +72,9 @@ export function cli(args: string[]): void {
         console.log('');
         updateEnvFile(secret);
         console.log('\n✨ XSecurity configured successfully!');
-        console.log('Make sure to add these environment variables to your production environment.\n');
+        console.log(
+          'Make sure to add these environment variables to your production environment.\n',
+        );
       } catch (error) {
         console.error('\n❌ Error during configuration:', error.message);
         process.exit(1);

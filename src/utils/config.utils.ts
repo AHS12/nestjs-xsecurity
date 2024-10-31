@@ -1,6 +1,6 @@
-import { DEFAULT_CONFIG } from "../config/default.config";
-import { XSecurityConfig } from "../interfaces/config.interface";
-import { validateConfig } from "./validation.config";
+import { DEFAULT_CONFIG } from '../config/default.config';
+import { XSecurityConfig } from '../interfaces/config.interface';
+import { validateConfig } from './validation.config';
 
 export function mergeConfig(userConfig?: XSecurityConfig): XSecurityConfig {
   const mergedConfig = {
