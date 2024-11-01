@@ -1,5 +1,10 @@
 export interface RateLimitConfig {
   /**
+   * Enable/disable the Rate Limiting
+   * @default true
+   */
+  enabled?: boolean;
+  /**
    * Maximum number of failed attempts before rate limiting
    * @default 5
    */
@@ -24,12 +29,6 @@ export interface TokenConfig {
    * @default 'X-SECURITY-TOKEN'
    */
   headerName?: string;
-
-  /**
-   * Length of the generated secret key
-   * @default 32
-   */
-  secretLength?: number;
 
   /**
    * Token expiry time in seconds(Token is short lived, so 10 seconds is more than enough)

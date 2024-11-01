@@ -11,6 +11,19 @@
 
 </div>
 
+## 📦 Installation
+
+```bash
+# Using npm
+npm install nestjs-xsecurity
+
+# Using yarn
+yarn add nestjs-xsecurity
+
+# Using pnpm
+pnpm add nestjs-xsecurity
+```
+
 ## 🌟 Features
 
 - **Token-based Security**
@@ -33,19 +46,8 @@
   - Comprehensive configuration options
   - CLI setup tool
   - Cross-platform token generators
+  - Wiki documentation. [Wiki](https://github.com/ahs12/nestjs-xsecurity/wiki)
 
-## 📦 Installation
-
-```bash
-# Using npm
-npm install nestjs-xsecurity
-
-# Using yarn
-yarn add nestjs-xsecurity
-
-# Using pnpm
-pnpm add nestjs-xsecurity
-```
 
 ## 🚀 Quick Start
 
@@ -81,6 +83,7 @@ import { XSecurityModule } from 'nestjs-xsecurity';
         enabled: config.get('XSECURITY_ENABLED', true),
         secret: config.get('XSECURITY_SECRET'),
         rateLimit: {
+          enabled: config.get('XSECURITY_RATE_LIMIT_ENABLED', true),
           maxAttempts: config.get('XSECURITY_MAX_ATTEMPTS', 5),
           decayMinutes: config.get('XSECURITY_DECAY_MINUTES', 1),
         },
@@ -104,6 +107,7 @@ import { XSecurityModule } from 'nestjs-xsecurity';
       enabled: true,
       secret: process.env.XSECURITY_SECRET,
       rateLimit: {
+        enabled: true,
         maxAttempts: 5,
         decayMinutes: 1,
       },
@@ -117,6 +121,8 @@ export class AppModule {}
 ## 🔧 Configuration
 
 ### Environment Variables
+
+Details configuration options can be found in this [Wiki Page](https://github.com/AHS12/nestjs-xsecurity/wiki/Configuration-Options#configuration-sections).
 
 ```env
 # Required
@@ -140,6 +146,7 @@ interface XSecurityConfig {
 
   // Rate limiting settings
   rateLimit?: {
+    enabled?: boolean;      // Default: true
     maxAttempts?: number;    // Default: 5
     decayMinutes?: number;   // Default: 1
     cleanupInterval?: number; // Default: 5

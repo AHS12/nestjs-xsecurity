@@ -3,13 +3,13 @@ import { XSecurityConfig } from '../interfaces/config.interface';
 export const DEFAULT_CONFIG: XSecurityConfig = {
   enabled: true,
   rateLimit: {
+    enabled: true,
     maxAttempts: 5,
     decayMinutes: 1,
     cleanupInterval: 5,
   },
   token: {
     headerName: 'X-SECURITY-TOKEN',
-    secretLength: 32,
     expirySeconds: 10, // 10 seconds
   },
   environment: {

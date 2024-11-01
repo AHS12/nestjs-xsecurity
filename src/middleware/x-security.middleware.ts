@@ -62,7 +62,7 @@ export class XSecurityMiddleware implements NestMiddleware, OnModuleDestroy {
 
       const token = req.header(this.config.token?.headerName || 'X-SECURITY-TOKEN');
       if (!token || !this.isValidXSecureToken(token)) {
-        this.incrementFailedAttempts(clientIp, currentTime);
+        if (this.config.rateLimit?.enabled) this.incrementFailedAttempts(clientIp, currentTime);
         res.status(HttpStatus.FORBIDDEN).json({
           statusCode: HttpStatus.FORBIDDEN,
           message: this.config.errorMessages?.invalidToken || 'Invalid XSECURITY token',

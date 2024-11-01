@@ -10,7 +10,13 @@ export class ConfigValidationError extends Error {
 export function validateConfig(config: XSecurityConfig): void {
   // Validate Rate Limit Configuration
   if (config.rateLimit) {
-    const { maxAttempts, decayMinutes, cleanupInterval } = config.rateLimit;
+    const { enabled, maxAttempts, decayMinutes, cleanupInterval } = config.rateLimit;
+
+    if (enabled !== undefined) {
+      if (typeof enabled !== 'boolean') {
+        throw new ConfigValidationError('rateLimit.enabled must be a boolean');
+      }
+    }
 
     if (maxAttempts !== undefined) {
       if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
@@ -33,13 +39,7 @@ export function validateConfig(config: XSecurityConfig): void {
 
   // Validate Token Configuration
   if (config.token) {
-    const { secretLength, expirySeconds, headerName } = config.token;
-
-    if (secretLength !== undefined) {
-      if (!Number.isInteger(secretLength) || secretLength < 16) {
-        throw new ConfigValidationError('token.secretLength must be an integer >= 16');
-      }
-    }
+    const { expirySeconds, headerName } = config.token;
 
     if (expirySeconds !== undefined) {
       if (!Number.isInteger(expirySeconds) || expirySeconds < 1) {
