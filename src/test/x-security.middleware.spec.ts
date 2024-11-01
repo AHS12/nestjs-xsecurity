@@ -21,6 +21,7 @@ describe('XSecurityMiddleware', () => {
   };
 
   beforeEach(async () => {
+    jest.useFakeTimers();
     testSecretKey = 'test-secret-key-12345';
 
     const customConfig: XSecurityConfig = {
@@ -51,10 +52,13 @@ describe('XSecurityMiddleware', () => {
   });
 
   afterEach(() => {
-    if (middleware['cleanupInterval']) {
-      clearInterval(middleware['cleanupInterval']);
-    }
+    clearInterval(middleware.getCleanupInterval());
+    jest.clearAllTimers();
     jest.clearAllMocks();
+  });
+
+  afterAll(() => {
+    jest.useRealTimers();
   });
 
   describe('Token Validation', () => {
@@ -75,6 +79,22 @@ describe('XSecurityMiddleware', () => {
       const invalidToken = `${tokenPart}.invalid-signature`;
 
       mockReq.header = jest.fn().mockReturnValue(invalidToken);
+
+      middleware.use(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          statusCode: 403,
+          message: 'Invalid XSECURITY token',
+        }),
+      );
+      expect(mockNext).not.toHaveBeenCalled();
+    });
+
+    it('should reject expired token', () => {
+      const expiredToken = generateXsecurityToken(testSecretKey, -10); // Expiry in the past
+      mockReq.header = jest.fn().mockReturnValue(expiredToken);
 
       middleware.use(mockReq as Request, mockRes as Response, mockNext);
 
