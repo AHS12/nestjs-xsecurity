@@ -30,12 +30,8 @@ export class XSecurityMiddleware implements NestMiddleware, OnModuleDestroy {
     this.excludePatterns = config.exclude || [];
 
     const cleanupMinutes = this.config.rateLimit?.cleanupInterval || 5;
-    this.cleanupInterval = setInterval(
-      () => {
-        this.cleanupRateLimits();
-      },
-      cleanupMinutes * 60 * 1000,
-    ) as NodeJS.Timeout;
+
+    this.cleanupInterval = setInterval(() => this.cleanupRateLimits(), cleanupMinutes * 60 * 1000);
   }
 
   use(req: Request, res: Response, next: NextFunction): void {
@@ -66,7 +62,7 @@ export class XSecurityMiddleware implements NestMiddleware, OnModuleDestroy {
 
       const token = req.header(this.config.token?.headerName || 'X-SECURITY-TOKEN');
       if (!token || !this.isValidXSecureToken(token)) {
-        this.incrementFailedAttempts(clientIp, currentTime);
+        if (this.config.rateLimit?.enabled) this.incrementFailedAttempts(clientIp, currentTime);
         res.status(HttpStatus.FORBIDDEN).json({
           statusCode: HttpStatus.FORBIDDEN,
           message: this.config.errorMessages?.invalidToken || 'Invalid XSECURITY token',
@@ -85,6 +81,10 @@ export class XSecurityMiddleware implements NestMiddleware, OnModuleDestroy {
         error: 'Internal Server Error',
       });
     }
+  }
+
+  public getCleanupInterval() {
+    return this.cleanupInterval;
   }
 
   private normalizePath(path: string): string {

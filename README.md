@@ -2,14 +2,27 @@
 
 <div align="center">
 
-🔐 Enterprise-grade security middleware for NestJS applications with token validation, rate limiting, and path exclusion.
+🔐 Robust security middleware for NestJS applications with token validation, rate limiting, and path exclusion.
 
 [![npm version](https://badge.fury.io/js/nestjs-xsecurity.svg)](https://badge.fury.io/js/nestjs-xsecurity)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
-[![NestJS](https://img.shields.io/badge/NestJS-Compatible-red.svg)](https://nestjs.com/)
+[![NestJS](https://img.shields.io/badge/NestJS-Compatible-green.svg)](https://nestjs.com/)
 
 </div>
+
+## 📦 Installation
+
+```bash
+# Using npm
+npm install nestjs-xsecurity
+
+# Using yarn
+yarn add nestjs-xsecurity
+
+# Using pnpm
+pnpm add nestjs-xsecurity
+```
 
 ## 🌟 Features
 
@@ -33,19 +46,8 @@
   - Comprehensive configuration options
   - CLI setup tool
   - Cross-platform token generators
+  - Wiki documentation. [Wiki](https://github.com/ahs12/nestjs-xsecurity/wiki)
 
-## 📦 Installation
-
-```bash
-# Using npm
-npm install nestjs-xsecurity
-
-# Using yarn
-yarn add nestjs-xsecurity
-
-# Using pnpm
-pnpm add nestjs-xsecurity
-```
 
 ## 🚀 Quick Start
 
@@ -81,6 +83,7 @@ import { XSecurityModule } from 'nestjs-xsecurity';
         enabled: config.get('XSECURITY_ENABLED', true),
         secret: config.get('XSECURITY_SECRET'),
         rateLimit: {
+          enabled: config.get('XSECURITY_RATE_LIMIT_ENABLED', true),
           maxAttempts: config.get('XSECURITY_MAX_ATTEMPTS', 5),
           decayMinutes: config.get('XSECURITY_DECAY_MINUTES', 1),
         },
@@ -104,6 +107,7 @@ import { XSecurityModule } from 'nestjs-xsecurity';
       enabled: true,
       secret: process.env.XSECURITY_SECRET,
       rateLimit: {
+        enabled: true,
         maxAttempts: 5,
         decayMinutes: 1,
       },
@@ -117,6 +121,8 @@ export class AppModule {}
 ## 🔧 Configuration
 
 ### Environment Variables
+
+Details configuration options can be found in this [Wiki Page](https://github.com/AHS12/nestjs-xsecurity/wiki/Configuration-Options#configuration-sections).
 
 ```env
 # Required
@@ -140,6 +146,7 @@ interface XSecurityConfig {
 
   // Rate limiting settings
   rateLimit?: {
+    enabled?: boolean;      // Default: true
     maxAttempts?: number;    // Default: 5
     decayMinutes?: number;   // Default: 1
     cleanupInterval?: number; // Default: 5
@@ -293,15 +300,10 @@ Commands:
 
 1. **Secret Management**
    - Use environment variables for secrets
-   - Implement secret rotation
    - Never expose secrets in client code
 
-2. **Token Handling**
-   - Use HTTPS for all requests
-   - Implement token refresh mechanism
-   - Monitor token usage patterns
 
-3. **Rate Limiting**
+2. **Rate Limiting**
    - Adjust limits based on your API's capacity
    - Monitor rate limit hits
    - Implement progressive delays
@@ -310,11 +312,6 @@ Commands:
 
 Contributions are welcome! Please read our [contributing guidelines](CONTRIBUTING.md) before submitting changes.
 
-1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
 
 ## 📄 License
 
