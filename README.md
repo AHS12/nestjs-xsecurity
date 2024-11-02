@@ -150,6 +150,7 @@ interface XSecurityConfig {
     maxAttempts?: number;    // Default: 5
     decayMinutes?: number;   // Default: 1
     cleanupInterval?: number; // Default: 5
+    storeLimit?: number;      // Default: 10000
   };
 
   // Token configuration
