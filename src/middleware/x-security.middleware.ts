@@ -9,12 +9,29 @@ interface RateLimitInfo {
   count: number;
   resetTime: number;
 }
+
+interface MetricsInfo {
+  totalRequests: number;
+  blockedRequests: number;
+  currentStoreSize: number;
+  peakStoreSize: number;
+  lastCleanupTime: number;
+}
+const MAX_STORE_DEFAULT_SIZE: number = 10000;
 @Injectable()
 export class XSecurityMiddleware implements NestMiddleware, OnModuleDestroy {
   private readonly rateLimitStore = new Map<string, RateLimitInfo>();
+  private readonly MAX_STORE_SIZE: number = MAX_STORE_DEFAULT_SIZE;
   private readonly cleanupInterval: NodeJS.Timeout;
   private readonly secret: string;
   private readonly excludePatterns: Array<string | RegExp>;
+  private readonly metrics: MetricsInfo = {
+    totalRequests: 0,
+    blockedRequests: 0,
+    currentStoreSize: 0,
+    peakStoreSize: 0,
+    lastCleanupTime: Date.now(),
+  };
 
   constructor(@Inject(XSECURITY_CONFIG) private config: XSecurityConfig) {
     this.config = mergeConfig(config);
@@ -27,11 +44,17 @@ export class XSecurityMiddleware implements NestMiddleware, OnModuleDestroy {
         'XSecurity Warning: No security secret provided. Please provide a secret through config or environment variable.',
       );
     }
+    this.MAX_STORE_SIZE = this.config.rateLimit?.storeLimit || MAX_STORE_DEFAULT_SIZE;
     this.excludePatterns = config.exclude || [];
 
     const cleanupMinutes = this.config.rateLimit?.cleanupInterval || 5;
 
-    this.cleanupInterval = setInterval(() => this.cleanupRateLimits(), cleanupMinutes * 60 * 1000);
+    this.cleanupInterval = setInterval(
+      () => {
+        this.checkAndCleanup();
+      },
+      cleanupMinutes * 60 * 1000,
+    );
   }
 
   use(req: Request, res: Response, next: NextFunction): void {
@@ -49,7 +72,13 @@ export class XSecurityMiddleware implements NestMiddleware, OnModuleDestroy {
       const clientIp = req.ip || '127.0.0.1';
       const currentTime = Date.now();
 
+      // Check store size and force cleanup if needed
+      if (this.rateLimitStore.size >= this.MAX_STORE_SIZE * 0.8) {
+        this.forceCleanup(currentTime);
+      }
+
       if (this.isRateLimited(clientIp, currentTime)) {
+        this.metrics.blockedRequests++;
         res.status(HttpStatus.TOO_MANY_REQUESTS).json({
           statusCode: HttpStatus.TOO_MANY_REQUESTS,
           message:
@@ -62,7 +91,10 @@ export class XSecurityMiddleware implements NestMiddleware, OnModuleDestroy {
 
       const token = req.header(this.config.token?.headerName || 'X-SECURITY-TOKEN');
       if (!token || !this.isValidXSecureToken(token)) {
-        if (this.config.rateLimit?.enabled) this.incrementFailedAttempts(clientIp, currentTime);
+        if (this.config.rateLimit?.enabled && this.rateLimitStore.size < this.MAX_STORE_SIZE) {
+          this.incrementFailedAttempts(clientIp, currentTime);
+        }
+        this.metrics.blockedRequests++;
         res.status(HttpStatus.FORBIDDEN).json({
           statusCode: HttpStatus.FORBIDDEN,
           message: this.config.errorMessages?.invalidToken || 'Invalid XSECURITY token',
@@ -74,6 +106,7 @@ export class XSecurityMiddleware implements NestMiddleware, OnModuleDestroy {
       this.rateLimitStore.delete(clientIp);
       next();
     } catch (error) {
+      this.metrics.blockedRequests++;
       // Handle any unexpected errors
       res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
@@ -132,6 +165,77 @@ export class XSecurityMiddleware implements NestMiddleware, OnModuleDestroy {
     });
   }
 
+  private checkAndCleanup(): void {
+    const currentTime = Date.now();
+    this.cleanupRateLimits(currentTime);
+    this.checkMemoryUsage();
+
+    // Update metrics
+    this.metrics.currentStoreSize = this.rateLimitStore.size;
+    this.metrics.peakStoreSize = Math.max(this.metrics.peakStoreSize, this.rateLimitStore.size);
+    this.metrics.lastCleanupTime = currentTime;
+  }
+
+  private forceCleanup(currentTime: number): void {
+    let cleanedEntries = 0;
+
+    // If we're at max capacity, perform aggressive cleanup
+    if (this.rateLimitStore.size >= this.MAX_STORE_SIZE) {
+      for (const [clientIp, rateLimit] of this.rateLimitStore.entries()) {
+        // Remove entries that are over 50% of their time window
+        const timeWindow = (this.config.rateLimit?.decayMinutes || 1) * 60 * 1000;
+        const elapsedTime = currentTime - (rateLimit.resetTime - timeWindow);
+
+        if (elapsedTime > timeWindow * 0.3) {
+          this.rateLimitStore.delete(clientIp);
+          cleanedEntries++;
+        }
+
+        // Break if we've cleaned enough entries
+        if (this.rateLimitStore.size < this.MAX_STORE_SIZE * 0.7) {
+          break;
+        }
+      }
+
+      if (cleanedEntries > 0) {
+        console.warn(`XSecurity: Emergency cleanup performed. Removed ${cleanedEntries} entries.`);
+      }
+    }
+  }
+
+  private cleanupRateLimits(currentTime: number): void {
+    let cleanedEntries = 0;
+
+    for (const [clientIp, rateLimit] of this.rateLimitStore.entries()) {
+      if (currentTime > rateLimit.resetTime) {
+        this.rateLimitStore.delete(clientIp);
+        cleanedEntries++;
+      }
+    }
+
+    // Log significant cleanups
+    if (cleanedEntries > 100) {
+      console.log(
+        `XSecurity: Cleaned ${cleanedEntries} entries. Current store size: ${this.rateLimitStore.size}`,
+      );
+    }
+  }
+
+  private checkMemoryUsage(): void {
+    const used = process.memoryUsage();
+    if (used.heapUsed > 0.8 * used.heapTotal) {
+      console.warn('XSecurity: High memory usage detected. Forcing cleanup...');
+      this.forceCleanup(Date.now());
+    }
+  }
+
+  public getMetrics(): MetricsInfo {
+    return {
+      ...this.metrics,
+      currentStoreSize: this.rateLimitStore.size,
+    };
+  }
+
   private isRateLimited(clientIp: string, currentTime: number): boolean {
     const rateLimit = this.rateLimitStore.get(clientIp);
     if (!rateLimit) return false;
@@ -179,15 +283,6 @@ export class XSecurityMiddleware implements NestMiddleware, OnModuleDestroy {
       return Date.now() / 1000 < payload.expiry;
     } catch {
       return false;
-    }
-  }
-
-  private cleanupRateLimits(): void {
-    const currentTime = Date.now();
-    for (const [clientIp, rateLimit] of this.rateLimitStore.entries()) {
-      if (currentTime > rateLimit.resetTime) {
-        this.rateLimitStore.delete(clientIp);
-      }
     }
   }
 

@@ -7,6 +7,7 @@ export const DEFAULT_CONFIG: XSecurityConfig = {
     maxAttempts: 5,
     decayMinutes: 1,
     cleanupInterval: 5,
+    storeLimit: 10000,
   },
   token: {
     headerName: 'X-SECURITY-TOKEN',

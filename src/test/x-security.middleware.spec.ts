@@ -185,4 +185,142 @@ describe('XSecurityMiddleware', () => {
       expect(mockRes.status).not.toHaveBeenCalled();
     });
   });
+
+  describe('Cleanup Behavior', () => {
+    let originalConsoleWarn: typeof console.warn;
+    let originalConsoleLog: typeof console.log;
+
+    beforeEach(() => {
+      originalConsoleWarn = console.warn;
+      originalConsoleLog = console.log;
+      console.warn = jest.fn();
+      console.log = jest.fn();
+    });
+
+    afterEach(() => {
+      console.warn = originalConsoleWarn;
+      console.log = originalConsoleLog;
+    });
+
+    it('should clean up expired entries', () => {
+      const invalidToken = 'invalid-token';
+
+      // Add some entries
+      for (let i = 0; i < 5; i++) {
+        mockReq = {
+          ip: `192.168.1.${i}`,
+          header: jest.fn().mockReturnValue(invalidToken),
+          originalUrl: '/test',
+          url: '/test',
+        };
+
+        middleware.use(mockReq as Request, mockRes as Response, mockNext);
+      }
+
+      const initialMetrics = middleware.getMetrics();
+      expect(initialMetrics.currentStoreSize).toBe(5);
+
+      // Fast forward past the decay time
+      jest.advanceTimersByTime(2 * 60 * 1000); // 2 minutes
+
+      // Trigger cleanup
+      middleware['checkAndCleanup']();
+
+      const finalMetrics = middleware.getMetrics();
+      expect(finalMetrics.currentStoreSize).toBe(0);
+    });
+
+    it('should trigger cleanup at MAX_STORE_SIZE', () => {
+      const invalidToken = 'invalid-token';
+      const consoleSpy = jest.spyOn(console, 'warn');
+
+      // Fill up first batch and advance time
+      for (let i = 0; i < 5000; i++) {
+        mockReq = {
+          ip: `192.168.1.${i}`,
+          header: jest.fn().mockReturnValue(invalidToken),
+          originalUrl: '/test',
+          url: '/test',
+        };
+        middleware.use(mockReq as Request, mockRes as Response, mockNext);
+      }
+
+      // Advance time to make these entries aged
+      jest.advanceTimersByTime(30 * 1000); // 30 seconds
+
+      // Fill up remaining entries
+      for (let i = 5000; i < 10000; i++) {
+        mockReq = {
+          ip: `192.168.1.${i}`,
+          header: jest.fn().mockReturnValue(invalidToken),
+          originalUrl: '/test',
+          url: '/test',
+        };
+        middleware.use(mockReq as Request, mockRes as Response, mockNext);
+      }
+
+      // Add one more to trigger cleanup
+      mockReq = {
+        ip: '192.168.2.1',
+        header: jest.fn().mockReturnValue(invalidToken),
+        originalUrl: '/test',
+        url: '/test',
+      };
+      middleware.use(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Emergency cleanup performed'),
+      );
+    });
+
+    it('should maintain store size at or below MAX_STORE_SIZE', () => {
+      const invalidToken = 'invalid-token';
+
+      // Add entries up to and slightly over MAX_STORE_SIZE
+      for (let i = 0; i < 10100; i++) {
+        mockReq = {
+          ip: `192.168.1.${i}`,
+          header: jest.fn().mockReturnValue(invalidToken),
+          originalUrl: '/test',
+          url: '/test',
+        };
+        middleware.use(mockReq as Request, mockRes as Response, mockNext);
+      }
+
+      const metrics = middleware.getMetrics();
+      expect(metrics.currentStoreSize).toBeLessThanOrEqual(10000);
+    });
+
+    it('should handle high memory usage', () => {
+      const mockMemoryUsage = jest.spyOn(process, 'memoryUsage').mockReturnValue({
+        heapTotal: 100 * 1024 * 1024,
+        heapUsed: 90 * 1024 * 1024,
+        external: 0,
+        arrayBuffers: 0,
+        rss: 0,
+      });
+
+      const invalidToken = 'invalid-token';
+      // Add some entries
+      for (let i = 0; i < 100; i++) {
+        mockReq = {
+          ip: `192.168.1.${i}`,
+          header: jest.fn().mockReturnValue(invalidToken),
+          originalUrl: '/test',
+          url: '/test',
+        };
+        middleware.use(mockReq as Request, mockRes as Response, mockNext);
+      }
+
+      const initialSize = middleware.getMetrics().currentStoreSize;
+
+      // Trigger memory check and cleanup
+      middleware['checkAndCleanup']();
+
+      const finalSize = middleware.getMetrics().currentStoreSize;
+      expect(finalSize).toBeLessThanOrEqual(initialSize);
+
+      mockMemoryUsage.mockRestore();
+    });
+  });
 });
