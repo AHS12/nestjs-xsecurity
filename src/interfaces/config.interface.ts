@@ -21,6 +21,12 @@ export interface RateLimitConfig {
    * @default 5
    */
   cleanupInterval?: number;
+
+  /**
+   * Maximum number of entries in rate limit store
+   * @default 10000
+   */
+  storeLimit?: number;
 }
 
 export interface TokenConfig {
