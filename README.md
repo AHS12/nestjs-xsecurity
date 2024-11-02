@@ -24,6 +24,15 @@ yarn add nestjs-xsecurity
 pnpm add nestjs-xsecurity
 ```
 
+## 📖 Documentation
+
+- [Quick Start Guide](https://github.com/ahs12/nestjs-xsecurity?tab=readme-ov-file#-quick-start) (below)
+- [Complete Documentation](https://github.com/ahs12/nestjs-xsecurity/wiki) - Visit the [Wiki](https://github.com/ahs12/nestjs-xsecurity/wiki) for:
+  - Advanced Configuration Examples
+  - Security Best Practices
+  - Troubleshooting
+  - And More!
+
 ## 🌟 Features
 
 - **Token-based Security**
@@ -86,6 +95,7 @@ import { XSecurityModule } from 'nestjs-xsecurity';
           enabled: config.get('XSECURITY_RATE_LIMIT_ENABLED', true),
           maxAttempts: config.get('XSECURITY_MAX_ATTEMPTS', 5),
           decayMinutes: config.get('XSECURITY_DECAY_MINUTES', 1),
+          storeLimit: config.get('XSECURITY_RATE_LIMIT_STORE_LIMIT', 10000),
         },
         exclude: ['/health', '/metrics', '/api/docs/*'],
       }),
