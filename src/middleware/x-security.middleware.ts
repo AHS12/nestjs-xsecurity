@@ -1,6 +1,7 @@
 import { HttpStatus, Inject, Injectable, NestMiddleware, OnModuleDestroy } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { NextFunction, Request, Response } from 'express';
+import * as os from 'os';
 import { XSecurityConfig } from '../interfaces/config.interface';
 import { mergeConfig } from '../utils/config.utils';
 import { XSECURITY_CONFIG } from '../x-security.module';
@@ -17,6 +18,7 @@ interface MetricsInfo {
   peakStoreSize: number;
   lastCleanupTime: number;
 }
+const LOCALHOST_IP: string = '127.0.0.1';
 const MAX_STORE_DEFAULT_SIZE: number = 10000;
 @Injectable()
 export class XSecurityMiddleware implements NestMiddleware, OnModuleDestroy {
@@ -32,6 +34,10 @@ export class XSecurityMiddleware implements NestMiddleware, OnModuleDestroy {
     peakStoreSize: 0,
     lastCleanupTime: Date.now(),
   };
+  private readonly FORCE_CLEANUP_MEMORY_THRESHOLD: number = 80;
+  private readonly MAX_STORE_SIZE_PERCENTAGE: number = 0.8;
+  private readonly MAX_STORE_SIZE_CLEANUP_THRESHOLD: number = 0.7;
+  private readonly TIME_WINDOW_TRIGGER_THRESHOLD: number = 0.3;
 
   constructor(@Inject(XSECURITY_CONFIG) private config: XSecurityConfig) {
     this.config = mergeConfig(config);
@@ -69,11 +75,11 @@ export class XSecurityMiddleware implements NestMiddleware, OnModuleDestroy {
         return next();
       }
 
-      const clientIp = req.ip || '127.0.0.1';
+      const clientIp = req.ip || LOCALHOST_IP;
       const currentTime = Date.now();
 
       // Check store size and force cleanup if needed
-      if (this.rateLimitStore.size >= this.MAX_STORE_SIZE * 0.8) {
+      if (this.rateLimitStore.size >= this.MAX_STORE_SIZE * this.MAX_STORE_SIZE_PERCENTAGE) {
         this.forceCleanup(currentTime);
       }
 
@@ -186,13 +192,16 @@ export class XSecurityMiddleware implements NestMiddleware, OnModuleDestroy {
         const timeWindow = (this.config.rateLimit?.decayMinutes || 1) * 60 * 1000;
         const elapsedTime = currentTime - (rateLimit.resetTime - timeWindow);
 
-        if (elapsedTime > timeWindow * 0.3) {
+        if (elapsedTime > timeWindow * this.TIME_WINDOW_TRIGGER_THRESHOLD) {
           this.rateLimitStore.delete(clientIp);
           cleanedEntries++;
         }
 
         // Break if we've cleaned enough entries
-        if (this.rateLimitStore.size < this.MAX_STORE_SIZE * 0.7) {
+        if (
+          this.rateLimitStore.size <
+          this.MAX_STORE_SIZE * this.MAX_STORE_SIZE_CLEANUP_THRESHOLD
+        ) {
           break;
         }
       }
@@ -222,9 +231,14 @@ export class XSecurityMiddleware implements NestMiddleware, OnModuleDestroy {
   }
 
   private checkMemoryUsage(): void {
-    const used = process.memoryUsage();
-    if (used.heapUsed > 0.8 * used.heapTotal) {
-      console.warn('XSecurity: High memory usage detected. Forcing cleanup...');
+    const processMemory = process.memoryUsage().rss;
+    const systemTotalMemory = os.totalmem();
+    const processMemoryPercent = (processMemory / systemTotalMemory) * 100;
+
+    if (processMemoryPercent > this.FORCE_CLEANUP_MEMORY_THRESHOLD) {
+      console.warn(
+        `XSecurity: High process memory usage (${processMemoryPercent.toFixed(2)}% of system memory). Forcing cleanup...`,
+      );
       this.forceCleanup(Date.now());
     }
   }

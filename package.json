@@ -1,6 +1,6 @@
 {
   "name": "nestjs-xsecurity",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Security middleware for NestJS applications with token validation and rate limiting",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
