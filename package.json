@@ -21,7 +21,7 @@
     "version": "npm run format && git add -A src",
     "postversion": "git push && git push --tags",
     "format:fix": "prettier --write \"src/**/*.ts\" --end-of-line auto",
-    "lint:fix": "eslint \"src/**/*.ts\" --fix --fix-type problem,suggestion,layout"
+    "lint": "eslint \"src/**/*.ts\" --fix --fix-type problem,suggestion,layout"
   },
   "files": [
     "dist",
