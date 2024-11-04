@@ -189,7 +189,13 @@ import crypto from 'crypto';
 
 function generateXsecurityToken(secretKey: string, expirySeconds = 300): string {
   const expiryTimestamp = Math.floor(Date.now() / 1000) + expirySeconds;
-  const payload = { expiry: expiryTimestamp };
+  const randomBytes = crypto.randomBytes(16).toString('hex'); // Add randomness
+  const payload = {
+    expiry: expiryTimestamp,
+    nonce: randomBytes,
+    iat: Date.now()
+  };
+
   const token = Buffer.from(JSON.stringify(payload)).toString('base64');
   const signature = crypto
     .createHmac('sha256', secretKey)
@@ -206,25 +212,43 @@ const token = generateXsecurityToken('your-secret-key');
 ### Python
 
 ```python
-import hmac
-import json
-import base64
-import hashlib
 import time
+import json
+import hmac
+import base64
+import secrets
+import hashlib
+from typing import Optional
 
 def generate_xsecurity_token(secret_key: str, expiry_seconds: int = 300) -> str:
-    expiry = int(time.time()) + expiry_seconds
-    payload = {'expiry': expiry}
+    """
+    Generate a secure token with expiry and nonce.
 
-    # Create token
+    Args:
+        secret_key (str): Secret key for signing
+        expiry_seconds (int): Token validity duration in seconds
+
+    Returns:
+        str: Generated security token
+    """
+    expiry_timestamp = int(time.time()) + expiry_seconds
+    random_bytes = secrets.token_hex(16)  # 16 bytes = 32 hex chars
+
+    payload = {
+        "expiry": expiry_timestamp,
+        "nonce": random_bytes,
+        "iat": int(time.time() * 1000)  # milliseconds
+    }
+
+    # Convert payload to base64
     token = base64.b64encode(
-        json.dumps(payload).encode()
-    ).decode()
+        json.dumps(payload).encode('utf-8')
+    ).decode('utf-8')
 
     # Generate signature
     signature = hmac.new(
-        secret_key.encode(),
-        token.encode(),
+        secret_key.encode('utf-8'),
+        token.encode('utf-8'),
         hashlib.sha256
     ).hexdigest()
 
@@ -235,18 +259,33 @@ def generate_xsecurity_token(secret_key: str, expiry_seconds: int = 300) -> str:
 
 ```dart
 import 'dart:convert';
+import 'dart:math';
 import 'package:crypto/crypto.dart';
 
-String generateXsecurityToken(String secretKey, {int expirySeconds = 300}) {
-  final expiry = DateTime.now().millisecondsSinceEpoch ~/ 1000 + expirySeconds;
-  final payload = {'expiry': expiry};
+class XSecurityToken {
+  static String generate(String secretKey, {int expirySeconds = 300}) {
+    final expiryTimestamp = (DateTime.now().millisecondsSinceEpoch ~/ 1000) + expirySeconds;
 
-  final token = base64Url.encode(utf8.encode(jsonEncode(payload)));
-  final signature = Hmac(sha256, utf8.encode(secretKey))
-      .convert(utf8.encode(token))
-      .toString();
+    // Generate random bytes for nonce
+    final random = Random.secure();
+    final randomBytes = List<int>.generate(16, (i) => random.nextInt(256));
+    final nonce = randomBytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
 
-  return '$token.$signature';
+    final payload = {
+      'expiry': expiryTimestamp,
+      'nonce': nonce,
+      'iat': DateTime.now().millisecondsSinceEpoch
+    };
+
+    // Convert payload to base64
+    final token = base64Encode(utf8.encode(jsonEncode(payload)));
+
+    // Generate signature
+    final hmacSha256 = Hmac(sha256, utf8.encode(secretKey));
+    final signature = hmacSha256.convert(utf8.encode(token)).toString();
+
+    return '$token.$signature';
+  }
 }
 ```
 
